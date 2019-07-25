@@ -48,7 +48,6 @@ class WordPressAPI
     {
         $this->namespace = 'tiny-pixel';
         $this->handler   = $this->app['stripe.handler'];
-
         $this->clientId  = $this->handler->getClientId();
 
         add_action('rest_api_init', [$this, 'routes']);
@@ -86,9 +85,7 @@ class WordPressAPI
             ], 200);
         }
 
-        return new WP_REST_Response([
-            'err' => 'Endpoint reached but no client id can be found.',
-        ], 400);
+        return new WP_REST_Response(['err' => 'Endpoint reached but no client id can be found.'], 400);
     }
 
     /**
@@ -115,9 +112,7 @@ class WordPressAPI
                 return WP_REST_Response($response, 200);
             }
 
-            return new WP_REST_Response([
-                'err' => 'Transaction amount not defined'
-            ], 400);
+            return new WP_REST_Response(['err' => 'Transaction amount not defined'], 400);
         }
     }
 }

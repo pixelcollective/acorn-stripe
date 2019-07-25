@@ -2,9 +2,14 @@
 
 namespace TinyPixel\WordPress\Stripe;
 
+// League
 use \Omnipay\Omnipay;
 use \OmniPay\Stripe;
 
+// Illuminate Framework
+use \Illuminate\Support\Collection;
+
+// Roots
 use \Roots\Acorn\Application;
 
 /**
@@ -32,7 +37,13 @@ class Handler
         return $this;
     }
 
-    public function config(\Illuminate\Support\Collection $config)
+    /**
+     * Configures class
+     *
+     * @param \Illuminate\Support\Collection $config
+     * @return void
+     */
+    public function config(Collection $config)
     {
         $this->settings = $config;
     }
@@ -75,7 +86,6 @@ class Handler
             $this->token = $token;
         }
     }
-
     /**
      * Sets currency type
      *
@@ -102,7 +112,7 @@ class Handler
                 $this->gateway->purchase([
                     'amount'   => $amount,
                     'currency' => $currency ? $currency : 'USD',
-                    'token'    => $token,
+                    'token'    => $this->token,
                 ])->send()
             );
         }
