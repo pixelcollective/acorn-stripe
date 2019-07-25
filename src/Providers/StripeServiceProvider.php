@@ -49,8 +49,11 @@ class StripeServiceProvider extends ServiceProvider
      */
     public function boot()
     {
+        $this->publishable = Collection::make();
+
         $this->publishableConfig();
-        $this->publishableAssets();
+        $this->publishableResources();
+        $this->publishes($this->publishable->toArray());
 
         $this->app->make('stripe.handler')->config(
             Collection::make($this->app['config']['services']['stripe'])
@@ -70,7 +73,7 @@ class StripeServiceProvider extends ServiceProvider
         $publishableConfig = __DIR__ . '/../config/services.php';
 
         if (!file_exists($servicesConfig)) {
-            $this->publishes([$publishableConfig => $servicesConfig]);
+            $this->publishable->push([$publishableConfig => $servicesConfig]);
         } else {
             $this->mergeConfigFrom($publishableConfig, 'services');
         }
@@ -81,11 +84,17 @@ class StripeServiceProvider extends ServiceProvider
      *
      * @return void
      */
-    public function publishableAssets()
+    public function publishableResources()
     {
-        $appResources         = base_path('resources/vendor/stripe');
-        $publishableResources = __DIR__ . '/../resources/vendor/stripe';
+        $appBase = base_path('resources');
 
-        $this->publishes([$publishableResources => $appResources]);
+        $this->publishes([
+            __DIR__ . '/../resources/views'           => "{$appBase}/views/vendor/stripe",
+            __DIR__ . '/../resources/assets/scripts/' => "{$appBase}/assets/scripts/vendor/stripe",
+            __DIR__ . '/../resources/assets/styles/'  => "{$appBase}/assets/styles/vendor/stripe",
+            __DIR__ . '/../resources/svg'             => "{$appBase}/svg/vendor/stripe",
+            __DIR__ . '/../../dist/scripts.js'        => "{$appBase}/assets/scripts/vendor/stripe/bundle.js",
+            __DIR__ . '/../../dist/stripe.css'        => "{$appBase}/assets/styles/vendor/stripe/bundle.css",
+        ]);
     }
 }
