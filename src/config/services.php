@@ -1,9 +1,8 @@
 <?php
 
 return [
-    'gateways'=> [
-        'stripe' => [
-            'api_key' => env('STRIPE_API_KEY'),
-        ],
+    'stripe' => [
+        'server_api_key' => env('STRIPE_SECRET'),
+        'client_api_key' => env('STRIPE_CLIENT'),
     ],
 ];
