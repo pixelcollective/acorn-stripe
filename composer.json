@@ -1,0 +1,37 @@
+{
+ "name": "tiny-pixel/acorn-stripe",
+ "type": "package",
+ "license": "MIT",
+ "description": "Stripe payment processor support for Acorn projects",
+ "authors": [
+  {
+   "name": "Kelly Mears",
+   "email": "kelly@tinypixel.dev"
+  }
+ ],
+ "keywords": [
+  "wordpress",
+  "acorn",
+  "sage"
+ ],
+ "support": {
+  "issues": "https://github.com/pixelcollective/acorn-glide/issues"
+ },
+ "autoload": {
+  "psr-4": {
+   "TinyPixel\\WordPress\\Glide\\": "src/"
+  }
+ },
+ "require": {
+  "php": ">=7.3",
+  "league/omnipay": "^3",
+  "omnipay/stripe": "^3.0"
+ },
+ "extra": {
+  "acorn": {
+   "providers": [
+    "TinyPixel\\WordPress\\Omnipay\\Providers\\OmnipayServiceProvider"
+   ]
+  }
+ }
+}
