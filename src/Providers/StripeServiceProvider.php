@@ -7,13 +7,17 @@ use \Illuminate\Support\Collection;
 
 // Roots
 use \Roots\Acorn\ServiceProvider;
-use function \Roots\config_path;
-use function \Roots\base_path;
+use function \Roots\{
+    base_path,
+    config_path,
+};
 
 // Internal
-use \TinyPixel\WordPress\Stripe\Assets;
-use \TinyPixel\WordPress\Stripe\Handler;
-use \TinyPixel\WordPress\Stripe\WordPressAPI;
+use \TinyPixel\WordPress\Stripe\{
+    Assets,
+    Handler,
+    WordPressAPI,
+};
 
 /**
  * Stripe Service Provider
@@ -50,19 +54,33 @@ class StripeServiceProvider extends ServiceProvider
      */
     public function boot()
     {
-        $this->publishable = Collection::make();
-
-        $this->publishableConfig();
-        $this->publishableResources();
-        $this->publishes($this->publishable->toArray());
-
-        (new Assets())();
+        $this->doPublishables();
 
         $this->app->make('stripe.handler')->config(
             Collection::make($this->app['config']['services']['stripe'])
         )->init();
 
         $this->app->make('stripe.wpapi')->init();
+
+        (new Assets())();
+    }
+
+    /**
+     * Handles all publishables
+     *
+     * @return void
+     */
+    public function doPublishables()
+    {
+        $this->publishable = Collection::make();
+
+        $this->publishableConfig();
+        $this->publishableResources();
+        $this->publishableComposers();
+
+        $this->publishes(
+            $this->publishable->toArray()
+        );
     }
 
     /**
@@ -98,6 +116,20 @@ class StripeServiceProvider extends ServiceProvider
             __DIR__ . '/../resources/svg'             => "{$appBase}/svg/vendor/stripe",
             __DIR__ . '/../../dist/scripts.js'        => "{$appBase}/assets/scripts/vendor/stripe/bundle.js",
             __DIR__ . '/../../dist/stripe.css'        => "{$appBase}/assets/styles/vendor/stripe/bundle.css",
+        ]);
+    }
+
+    /**
+     * Publishable composers
+     *
+     * @return void
+     */
+    public function publishableComposers()
+    {
+        $appBase = base_path('app');
+
+        $this->publishes([
+            __DIR__ . '/../Composers/StripeForm.php' => "{$appBase}/Composers/StripeForm.php"
         ]);
     }
 }

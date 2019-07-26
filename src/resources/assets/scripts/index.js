@@ -62,6 +62,7 @@ const doForm = clientId => {
     hiddenInput.setAttribute('type', 'hidden')
     hiddenInput.setAttribute('name', 'stripeToken')
     hiddenInput.setAttribute('value', token.id)
+
     form.appendChild(hiddenInput)
 
     form.submit()

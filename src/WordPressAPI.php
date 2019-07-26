@@ -85,7 +85,9 @@ class WordPressAPI
             ], 200);
         }
 
-        return new WP_REST_Response(['err' => 'Endpoint reached but no client id can be found.'], 400);
+        return new WP_REST_Response([
+            'err' => 'Endpoint reached but no client id can be found.'
+        ], 400);
     }
 
     /**
@@ -111,7 +113,9 @@ class WordPressAPI
                 return new WP_REST_Response($response, 200);
             }
 
-            return new WP_REST_Response(['err' => 'Transaction amount not defined'], 400);
+            return new WP_REST_Response([
+                'err' => 'Transaction amount not defined',
+            ], 400);
         }
     }
 }
