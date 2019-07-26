@@ -1,14 +1,11 @@
-<script src="https://js.stripe.com/v3/"></script>
-
-<form action="/wp-json/acorn/stripe/client" method="post" id="stripe-form">
+<form action="/wp-json/tiny-pixel/stripe" method="post" id="payment-form" class="stripe-form">
   <div class="form-row">
     <label for="card-element">
-      {!! $labelText ?? 'Credit or debit card' !!}
+      {!! $cardLabel !!}
     </label>
     <div id="card-element"></div>
-
     <div id="card-errors" role="alert"></div>
   </div>
-
-  <button>{!! $buttonText ?? 'Submit payment' !!}</button>
+  <input type="hidden" value="{!! $value !!}" name="amount" />
+  <button class="stripe-form-payment-submit">Pay <span class="payment-form-value">${!! $value !!}</span></button>
 </form>

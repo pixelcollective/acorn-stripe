@@ -42,8 +42,13 @@ const doForm = clientId => {
 
     stripe.createToken(card).then(result => {
       if (result.error) {
-        const errorElement = document.getElementById('card-errors')
-        errorElement.textContent = result.error.message
+        const errorElement = document.getElementById(
+          'card-errors'
+        )
+
+        if(errorElement) {
+          errorElement.textContent = result.error.message
+        }
       } else {
         stripeTokenHandler(result.token)
       }
