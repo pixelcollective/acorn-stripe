@@ -1,52 +1,70 @@
 import axios from 'axios'
 
-axios.get('/wp-json/tiny-pixel/stripe').then(
+/**
+ * Get Stripe token
+ */
+axios.get(`/wp-json/tiny-pixel/stripe`).then(
   res => doForm(res.data.clientId)
 )
 
+/**
+ * Handle form
+ */
 const doForm = clientId => {
+  /**
+   * Stripe
+   */
   const stripe = Stripe(clientId)
   const elements = stripe.elements()
 
+  /**
+   * JSS ✨
+   */
   const style = {
     base: {
-      color: '#32325d',
-      fontFamily: '"Helvetica Neue", Helvetica, sans-serif',
-      fontSmoothing: 'antialiased',
-      fontSize: '16px',
+      color: `#32325d`,
+      fontFamily: `"Helvetica Neue", Helvetica, sans-serif`,
+      fontSmoothing: `antialiased`,
+      fontSize: `16px`,
       '::placeholder': {
-        color: '#aab7c4'
+        color: `#aab7c4`
       }
     },
     invalid: {
-      color: '#fa755a',
-      iconColor: '#fa755a'
+      color: `#fa755a`,
+      iconColor: `#fa755a`
     }
   }
 
-  const card = elements.create('card', { style })
-  card.mount('#card-element')
+  /**
+   * Card element
+   */
+  const card = elements.create(`card`, { style })
 
-  card.addEventListener('change', function (event) {
-    const displayError = document.getElementById('card-errors')
+  card.mount(`#card-element`)
+  card.addEventListener(`change`, function (event) {
+    const displayError = document.getElementById(`card-errors`)
+
     if (event.error) {
       displayError.textContent = event.error.message
     } else {
-      displayError.textContent = ''
+      displayError.textContent = ``
     }
   })
 
-  const form = document.getElementById('payment-form')
-  form.addEventListener('submit', event => {
-    event.preventDefault()
+  /**
+   * Form
+   */
+  const form = document.getElementById(`stripe-form`)
+
+  form && form.addEventListener(`submit`, e => {
+    e.preventDefault()
 
     stripe.createToken(card).then(result => {
       if (result.error) {
-        const errorElement = document.getElementById(
-          'card-errors'
-        )
+        const errorElement = document.getElementById(`card-errors`)
 
-        if(errorElement) {
+        if (errorElement) {
           errorElement.textContent = result.error.message
         }
       } else {
@@ -55,16 +73,34 @@ const doForm = clientId => {
     })
   })
 
-  const stripeTokenHandler = (token) => {
-    const form = document.getElementById('payment-form')
-    const hiddenInput = document.createElement('input')
+  /**
+   * Process with Stripe and WP API
+   */
+  const stripeTokenHandler = stripeToken => {
+    const form = document.getElementById(`stripe-form`)
+    const amount = form.querySelector(`.stripe-transaction-amount`).value
+    const token = stripeToken.id
 
-    hiddenInput.setAttribute('type', 'hidden')
-    hiddenInput.setAttribute('name', 'stripeToken')
-    hiddenInput.setAttribute('value', token.id)
+    form && amount && axios.post(`/wp-json/tiny-pixel/stripe`, {amount, token})
+    .then(res => interfaceSuccess())
+    .catch(err => console.log(err))
+  }
 
-    form.appendChild(hiddenInput)
+  const interfaceSuccess = () => {
+    const successElement = document.getElementById(`payment-success`)
+    const allOtherFormElements = form.querySelectorAll([
+      `#card-element`,
+      `#card-errors`,
+      `.cc-label`,
+      `.stripe-form-payment-submit`,
+    ])
 
-    form.submit()
+    successElement && (() => {
+      successElement.textContent = `Payment successful. Thank you!`
+    })
+
+    allOtherFormElements && allOtherFormElements.forEach(element => {
+      element.style.display = `none`
+    })
   }
 }
