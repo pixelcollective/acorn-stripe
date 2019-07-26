@@ -1,17 +1,34 @@
-import { stripeTokenHandler, getClientId } from './stripe'
+import axios from 'axios'
 
-const clientId = getClientId()
-const form = document.getElementById('payment-form')
+axios.get('/wp-json/tiny-pixel/stripe').then(
+  res => doForm(res.data.clientId)
+)
 
-if (form) {
+const doForm = clientId => {
   const stripe = Stripe(clientId)
-  let card = stripe.elements().create('card')
+  const elements = stripe.elements()
 
+  const style = {
+    base: {
+      color: '#32325d',
+      fontFamily: '"Helvetica Neue", Helvetica, sans-serif',
+      fontSmoothing: 'antialiased',
+      fontSize: '16px',
+      '::placeholder': {
+        color: '#aab7c4'
+      }
+    },
+    invalid: {
+      color: '#fa755a',
+      iconColor: '#fa755a'
+    }
+  }
+
+  const card = elements.create('card', { style })
   card.mount('#card-element')
 
-  card.addEventListener('change', event => {
-    let displayError = document.getElementById('card-errors')
-
+  card.addEventListener('change', function (event) {
+    const displayError = document.getElementById('card-errors')
     if (event.error) {
       displayError.textContent = event.error.message
     } else {
@@ -19,16 +36,29 @@ if (form) {
     }
   })
 
-  form.addEventListener('submit', e => {
-    e.preventDefault()
+  const form = document.getElementById('payment-form')
+  form.addEventListener('submit', event => {
+    event.preventDefault()
 
     stripe.createToken(card).then(result => {
       if (result.error) {
-        let errorElement = document.getElementById('card-errors')
+        const errorElement = document.getElementById('card-errors')
         errorElement.textContent = result.error.message
       } else {
         stripeTokenHandler(result.token)
       }
     })
   })
+
+  const stripeTokenHandler = (token) => {
+    const form = document.getElementById('payment-form')
+    const hiddenInput = document.createElement('input')
+
+    hiddenInput.setAttribute('type', 'hidden')
+    hiddenInput.setAttribute('name', 'stripeToken')
+    hiddenInput.setAttribute('value', token.id)
+    form.appendChild(hiddenInput)
+
+    form.submit()
+  }
 }

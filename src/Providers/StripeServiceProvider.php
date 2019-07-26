@@ -11,6 +11,7 @@ use function \Roots\config_path;
 use function \Roots\base_path;
 
 // Internal
+use \TinyPixel\WordPress\Stripe\Assets;
 use \TinyPixel\WordPress\Stripe\Handler;
 use \TinyPixel\WordPress\Stripe\WordPressAPI;
 
@@ -55,9 +56,11 @@ class StripeServiceProvider extends ServiceProvider
         $this->publishableResources();
         $this->publishes($this->publishable->toArray());
 
+        (new Assets())();
+
         $this->app->make('stripe.handler')->config(
             Collection::make($this->app['config']['services']['stripe'])
-        );
+        )->init();
 
         $this->app->make('stripe.wpapi')->init();
     }

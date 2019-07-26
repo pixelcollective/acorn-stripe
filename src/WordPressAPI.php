@@ -96,12 +96,11 @@ class WordPressAPI
      */
     public function clientPost($request)
     {
-        $parameters = $request->get_params();
+        $parameters = (object) $request->get_params();
 
         if (isset($parameters)) {
-            if (isset($parameters->connectToken)
-            && is_string($parameters->connectToken)) {
-                $this->handler->setToken($token);
+            if (isset($parameters->stripeToken)) {
+                $this->handler->setToken($parameters->stripeToken);
             }
 
             if (isset($parameters->amount)) {
@@ -109,7 +108,7 @@ class WordPressAPI
             }
 
             if (isset($response)) {
-                return WP_REST_Response($response, 200);
+                return new WP_REST_Response($response, 200);
             }
 
             return new WP_REST_Response(['err' => 'Transaction amount not defined'], 400);

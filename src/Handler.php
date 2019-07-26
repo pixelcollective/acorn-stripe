@@ -46,6 +46,8 @@ class Handler
     public function config(Collection $config)
     {
         $this->settings = $config;
+
+        return $this;
     }
 
     /**
@@ -55,9 +57,9 @@ class Handler
      */
     public function init()
     {
-        if ($apiKey = $this->settings->get('server_api_key')) {
-            $this->gateway = Omnipay::create('Stripe');
+        $this->gateway = Omnipay::create('Stripe');
 
+        if ($apiKey = $this->settings->get('server_api_key')) {
             $this->gateway->setApiKey($apiKey);
         } else {
             throw new Exception('An API is required to be set for Stripe transactions');
@@ -111,7 +113,7 @@ class Handler
             return $this->processStripeResponse(
                 $this->gateway->purchase([
                     'amount'   => $amount,
-                    'currency' => $currency ? $currency : 'USD',
+                    'currency' => isset($this->currency) ? $this->currency : 'USD',
                     'token'    => $this->token,
                 ])->send()
             );
