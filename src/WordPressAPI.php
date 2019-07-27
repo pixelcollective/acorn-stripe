@@ -47,8 +47,8 @@ class WordPressAPI
     public function init()
     {
         $this->namespace = 'tiny-pixel';
-        $this->handler   = $this->app['stripe.handler'];
-        $this->clientId  = $this->handler->getClientId();
+        $this->handler   = $this->app['stripe.wp.transaction'];
+        $this->clientId  = $this->handler->clientApiKey();
 
         add_action('rest_api_init', [$this, 'routes']);
     }
@@ -80,14 +80,10 @@ class WordPressAPI
     public function clientGet()
     {
         if (isset($this->clientId)) {
-            return new WP_REST_Response([
-                'clientId' => $this->clientId,
-            ], 200);
+            return new WP_REST_Response(['clientId' => $this->clientId], 200);
         }
 
-        return new WP_REST_Response([
-            'err' => 'Endpoint reached but no client id can be found.'
-        ], 400);
+        return new WP_REST_Response(['err' => 'Endpoint reached but no client id can be found.'], 400);
     }
 
     /**
@@ -102,20 +98,19 @@ class WordPressAPI
 
         if (isset($parameters)) {
             if (isset($parameters->stripeToken)) {
-                $this->handler->setToken($parameters->stripeToken);
+                $this->handler->token($parameters->stripeToken);
             }
 
             if (isset($parameters->amount)) {
-                $response = $this->handler->makeTransaction($parameters->amount);
+                $this->handler->amount($parameters->amount);
+                $response = $this->handler->transaction();
             }
 
             if (isset($response)) {
                 return new WP_REST_Response($response, 200);
             }
 
-            return new WP_REST_Response([
-                'err' => 'Transaction amount not defined',
-            ], 400);
+            return new WP_REST_Response(['err' => 'Transaction amount not defined'], 400);
         }
     }
 }

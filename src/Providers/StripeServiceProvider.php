@@ -12,10 +12,16 @@ use function \Roots\{
     config_path,
 };
 
+// Stripe
+use \Stripe\{
+    Charge,
+    Error,
+};
+
 // Internal
 use \TinyPixel\WordPress\Stripe\{
     Assets,
-    Handler,
+    Transaction,
     WordPressAPI,
 };
 
@@ -38,11 +44,21 @@ class StripeServiceProvider extends ServiceProvider
      */
     public function register()
     {
-        $this->app->singleton('stripe.handler', function () {
-            return new Handler($this->app);
+        require_once(__DIR__ . '/../../vendor/autoload.php');
+
+        $this->app->singleton('stripe.charge', function () {
+            return Charge::class;
         });
 
-        $this->app->singleton('stripe.wpapi', function () {
+        $this->app->singleton('stripe.error.card', function () {
+            return Error\Card::class;
+        });
+
+        $this->app->singleton('stripe.wp.transaction', function () {
+            return new Transaction($this->app);
+        });
+
+        $this->app->singleton('stripe.wp.api', function () {
             return new WordPressAPI($this->app);
         });
     }
@@ -56,11 +72,11 @@ class StripeServiceProvider extends ServiceProvider
     {
         $this->doPublishables();
 
-        $this->app->make('stripe.handler')->config(
+        $this->app->make('stripe.wp.transaction')->config(
             Collection::make($this->app['config']['services']['stripe'])
         )->init();
 
-        $this->app->make('stripe.wpapi')->init();
+        $this->app->make('stripe.wp.api')->init();
 
         (new Assets())();
     }
@@ -78,9 +94,7 @@ class StripeServiceProvider extends ServiceProvider
         $this->publishableResources();
         $this->publishableComposers();
 
-        $this->publishes(
-            $this->publishable->toArray()
-        );
+        $this->publishes($this->publishable->toArray());
     }
 
     /**

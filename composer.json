@@ -25,7 +25,8 @@
  "require": {
   "php": ">=7.3",
   "league/omnipay": "^3.0",
-  "omnipay/stripe": "^3.0"
+  "omnipay/stripe": "^3.0",
+  "stripe/stripe-php": "^6.40"
  },
  "extra": {
   "acorn": {

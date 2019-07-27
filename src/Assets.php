@@ -25,9 +25,7 @@ class Assets
      */
     public function __invoke()
     {
-        add_action('wp_enqueue_scripts', [
-            $this, 'enqueueStripeLibrary',
-        ]);
+        add_action('wp_enqueue_scripts', [$this, 'enqueueStripeLibrary']);
     }
 
     /**
