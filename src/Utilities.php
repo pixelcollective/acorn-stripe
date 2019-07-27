@@ -39,4 +39,22 @@ class Utilities
     {
         return $usd * 100;
     }
+
+    /**
+     * unCamelCaser
+     *
+     * @return string
+     */
+    public static function snakeToCamel(string $snake)
+    {
+        return str_replace('_', '', ucwords($key, '_'));
+    }
+
+    /**
+     * from Camel to Snake
+     */
+    public static function camelToSnake(string $camel)
+    {
+        return strtolower(preg_replace('/(?<!^)[A-Z]/', '_$0', $camel));
+    }
 }

@@ -46,7 +46,7 @@ class WordPressAPI
     {
         $this->namespace   = 'tiny-pixel';
         $this->transaction = $this->app['stripe.wp.transaction'];
-        $this->clientId    = $this->transaction->publicApiKey();
+        $this->clientId    = $this->transaction->publicKey();
 
         add_action('rest_api_init', [$this, 'routes']);
     }
@@ -99,8 +99,9 @@ class WordPressAPI
         $parameters = (object) $request->get_params();
 
         if (isset($parameters)) {
-            $this->transaction->token($parameters->stripeToken);
-            $this->transaction->amount($parameters->amount);
+            $this->transaction->token($parameters->stripeToken)
+                              ->amount($parameters->amount)
+                              ->setOptional('description', 'test');
 
             $response = $this->transaction->transaction();
 

@@ -78,9 +78,9 @@ class StripeServiceProvider extends ServiceProvider
 
         $this->app->make('stripe.wp.utilities');
 
-        $this->app->make('stripe.wp.transaction')->config(
-            Collection::make($this->app['config']['services']['stripe'])
-        )->init();
+        $transaction = $this->app->make('stripe.wp.transaction');
+        $transaction->config();
+        $transaction->init();
 
         $this->app->make('stripe.wp.api')->init();
 

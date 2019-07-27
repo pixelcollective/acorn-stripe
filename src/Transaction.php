@@ -2,6 +2,8 @@
 
 namespace TinyPixel\WordPress\Stripe;
 
+use \Exception;
+
 // Illuminate Framework
 use \Illuminate\Support\Collection;
 
@@ -17,7 +19,6 @@ use \Roots\Acorn\Application;
 // Internal
 use \TinyPixel\WordPress\Stripe\{
     Traits,
-    Exceptions\Exception,
     Exceptions\StripeException,
 };
 
@@ -56,14 +57,14 @@ class Transaction
      *
      * @var string
      */
-    protected $secretApiKey;
+    protected $secretKey;
 
     /**
      * Client API key
      *
      * @var string
      */
-    protected $publicApiKey;
+    protected $publicKey;
 
     /**
      * Construct
@@ -74,28 +75,23 @@ class Transaction
     public function __construct(Application $app)
     {
         $this->app = $app;
-
-        return $this;
     }
 
     /**
      * Configures class
      *
-     * @param  \Illuminate\Support\Collection          $config
      * @return \TinyPixel\WordPress\Stripe\Transaction $this
      */
-    public function config(Collection $config)
+    public function config()
     {
-        $this->settings = $config;
-
-        $this->setStripeKeys();
-        $this->setDefaultCurrency();
+        $this->settings = Collection::make(
+            $this->app['config']['services']['stripe']
+        );
 
         $this->util   = $this->app->make('stripe.wp.utilities');
         $this->charge = $this->app->make('stripe.charge');
-
-        return $this;
     }
+
 
     /**
      * Initializes Stripe
@@ -105,77 +101,67 @@ class Transaction
     public function init()
     {
         try {
-            $this->secretKey = $this->secretApiKey();
+            $this->secretKey($this->settings->get('api_secret'));
         } catch (Exception $err) {
-            return new Exception("{$this::$classname}: Attempted to set an unsepcified key in init method");
+            return new Exception("{$this::$classname}: A secret key is required");
+        }
+
+        try {
+            $this->publicKey($this->settings->get('api_publishable'));
+        } catch (Exception $err) {
+            return new Exception("{$this::$classname}: A public key is required");
+        }
+
+        $defaultCurrency = $this->settings->get('default_currency');
+
+        if (isset($defaultCurrency) && is_string($defaultCurrency)) {
+            $this->defaultCurrency = $defaultCurrency;
         }
 
         if (isset($this->secretKey) && !is_null($this->secretKey)) {
             Stripe::setApiKey($this->secretKey);
-        }
-
-        return $this;
-    }
-
-    /**
-     * Set Stripe keys
-     *
-     * @return void
-     */
-    private function setStripeKeys()
-    {
-        try {
-            $this->secretApiKey($this->settings->get('server_api_key'));
-        } catch (Exception $err) {
-            return new Exception("{$this::$classname}: A Stripe API key (secret) is required");
-        }
-
-        try {
-            $this->publicApiKey($this->settings->get('client_api_key'));
-        } catch (Exception $err) {
-            return new Exception("{$this::$classname}: A Stripe API key (publishable) is required");
         }
     }
 
     /**
      * Secret API key
      *
-     * @param  string $secretApiKey
-     * @return mixed{\TinyPixel\WordPress\Stripe\Transaction|string} {$this|$secretApiKey}
+     * @param  string $secretKey
+     * @return mixed{\TinyPixel\WordPress\Stripe\Transaction|string} {$this|$secretKey}
      */
-    public function secretApiKey(string $secretApiKey = null)
+    protected function secretKey(string $secretKey)
     {
-        if (isset($secretApiKey) && is_string($secretApiKey)) {
-            $this->secretApiKey = $secretApiKey;
+        if (isset($secretKey) && is_string($secretKey)) {
+            $this->secretKey = $secretKey;
 
             return $this;
         }
 
-        if (isset($this->secretApiKey)) {
-            return $this->secretApiKey;
+        if (isset($this->secretKey)) {
+            return $this->secretKey;
         } else {
-            throw new Exception("{$this::$classname}: A Stripe API key (secret) is required");
+            throw new Exception("{$this::$classname}: A secret key is required");
         }
     }
 
     /**
      * Publishable API Key
      *
-     * @param  string $publicApiKey
+     * @param  string $publicKey
      * @return mixed{int|object}
      */
-    public function publicApiKey(string $publicApiKey = null)
+    public function publicKey(string $publicKey = null)
     {
-        if (isset($publicApiKey) && is_string($publicApiKey)) {
-            $this->publicApiKey = $publicApiKey;
+        if (isset($publicKey) && is_string($publicKey)) {
+            $this->publicKey = $publicKey;
 
             return $this;
         }
 
-        if (isset($this->publicApiKey)) {
-            return $this->publicApiKey;
+        if (isset($this->publicKey)) {
+            return $this->publicKey;
         } else {
-            throw new Exception("{$this::$classname} A client API key is required to be set for Stripe transactions");
+            throw new Exception("{$this::$classname} A client key is required");
         }
     }
 
@@ -197,20 +183,6 @@ class Transaction
             return $this->token;
         } else {
             throw new Exception("{$this::$classname} There is an issue generating the API token");
-        }
-    }
-
-    /**
-     * Sets default currency
-     *
-     * @return void
-     */
-    public function setDefaultCurrency()
-    {
-        $defaultCurrency = $this->settings->get('default_currency');
-
-        if (isset($defaultCurrency) && is_string($defaultCurrency)) {
-            $this->defaultCurrency = $defaultCurrency;
         }
     }
 
@@ -253,7 +225,7 @@ class Transaction
             return $this->currency;
         }
 
-        throw new Exception("{$this::$classname}: Specify currency using the currency(string) method or in the configuration file");
+        throw new Exception("{$this::$classname}: Specify currency (USD, GB, etc.)");
     }
 
     /**
@@ -262,6 +234,34 @@ class Transaction
      * @return \Illuminate\Support\Collection $request
      */
     public function chargeObject()
+    {
+        // convert dollar amount to pennies for Stripe API
+        $this->amount = $this->util::inPennies($this->amount);
+
+        try {
+           $required = $this->validateRequisiteParams();
+        } catch (Exception $err) {
+            throw new Exception ($err);
+        }
+
+        $request = Collect($required);
+
+        /**
+         * Attempts to append any additional parameters to the request
+         */
+        try {
+            return $request = $this->optionalParameters($this->optionalParameters, $request);
+        } catch(Exception $err) {
+            return new Exception("{$this::$classname}: addArguments method exception");
+        }
+    }
+
+    /**
+     * Validate requisite params
+     *
+     * @return array
+     */
+    public function validateRequisiteParams()
     {
         // validate token
         try {
@@ -284,27 +284,11 @@ class Transaction
             throw new Exception("{$this::$classname}: A currency must be specified.");
         }
 
-        // convert dollar amount to pennies for Stripe API
-        $amount = $this->util::inPennies($amount);
-
-        /**
-         * Collects the minimum required parameters
-         * for a Stripe\Charge request
-         */
-        $request = Collect([
+        return [
             'source'   => $source,
             'amount'   => $amount,
             'currency' => $currency,
-        ]);
-
-        /**
-         * Attempts to append any additional parameters to the request
-         */
-        try {
-            return $request = $this->optionalParameters($this->optionalParameters, $request);
-        } catch(Exception $err) {
-            return new Exception("{$this::$classname}: addArguments method exception");
-        }
+        ];
     }
 
     /**
@@ -328,7 +312,7 @@ class Transaction
          * Bails if charge is not of type \Illuminate\Support\Collection
          */
         if (!$charge instanceof \Illuminate\Support\Collection) {
-            return new Exception("Error: chargeObject must return an Illuminate\Support\Collection instance");
+            return new Exception("Error: chargeObject must return a Collection");
         }
 
         /**
@@ -384,7 +368,7 @@ class Transaction
          * ...catches errors thrown by Stripe but caused by this implementation
          */
         catch (Exception $err) {
-            throw new Exception($err, "\TinyPixel\WordPress\Stripe\Transaction error: thrown from Stripe\Charge");
+            throw new Exception($err, "Transaction error: thrown from Stripe\Charge");
         }
     }
 }
