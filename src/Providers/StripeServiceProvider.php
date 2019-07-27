@@ -14,8 +14,8 @@ use function \Roots\{
 
 // Stripe
 use \Stripe\{
+    Stripe,
     Charge,
-    Error,
 };
 
 // Internal
@@ -23,6 +23,7 @@ use \TinyPixel\WordPress\Stripe\{
     Assets,
     Transaction,
     WordPressAPI,
+    Utilities,
 };
 
 /**
@@ -45,13 +46,16 @@ class StripeServiceProvider extends ServiceProvider
     public function register()
     {
         require_once(__DIR__ . '/../../vendor/autoload.php');
+        $this->app->bind('stripe', function () {
+            return Stripe::class;
+        });
 
         $this->app->singleton('stripe.charge', function () {
             return Charge::class;
         });
 
-        $this->app->singleton('stripe.error.card', function () {
-            return Error\Card::class;
+        $this->app->singleton('stripe.wp.utilities', function () {
+            return new Utilities($this->app);
         });
 
         $this->app->singleton('stripe.wp.transaction', function () {
@@ -71,6 +75,8 @@ class StripeServiceProvider extends ServiceProvider
     public function boot()
     {
         $this->doPublishables();
+
+        $this->app->make('stripe.wp.utilities');
 
         $this->app->make('stripe.wp.transaction')->config(
             Collection::make($this->app['config']['services']['stripe'])

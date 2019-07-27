@@ -6,14 +6,20 @@ namespace TinyPixel\WordPress\Stripe;
 use \Illuminate\Support\Collection;
 
 // Stripe
-use \Stripe\Stripe;
-use \Stripe\Error;
+use \Stripe\{
+    Stripe,
+    Error,
+};
 
 // Roots
 use \Roots\Acorn\Application;
 
 // Internal
-use Exception;
+use \TinyPixel\WordPress\Stripe\{
+    Traits,
+    Exceptions\Exception,
+    Exceptions\StripeException,
+};
 
 /**
  * Implements Stripe transactions
@@ -29,8 +35,12 @@ use Exception;
  */
 class Transaction
 {
+    use Traits\OptionalParameters;
+
     /**
      * Classname
+     *
+     * @static string
      */
     public static $classname = "\TinyPixel\WordPress\Stripe\Transaction";
 
@@ -42,91 +52,18 @@ class Transaction
     public $defaultCurrency;
 
     /**
-     * Optional parameters to be passed to Stripe
+     * Secret API key
      *
-     * @var  array
-     * @link https://stripe.com/docs/api/charges/create
+     * @var string
      */
-    public $optionalParameters = [
-        /**
-         * A fee in cents that will be applied to the charge and transferred to the application owner’s Stripe account.
-         * @link https://stripe.com/docs/connect/direct-charges#collecting-fees
-         * @var integer 'application_fee_amount'
-         */
-        'application_fee_amount',
+    protected $secretApiKey;
 
-        /**
-         * Whether to immediately capture the charge.
-         * @var boolean 'capture'
-         */
-        'capture',
-
-        /**
-         * The ID of an existing customer that will be charged in this request.
-         * @var string 'customer'
-         */
-        'customer',
-
-        /**
-         * An arbitrary string which you can attach to a Charge object. It is displayed when in the web interface alongside the charge.
-         * @var string 'description'
-         */
-        'description',
-
-        /**
-         * Set of key-value pairs that you can attach to an object.
-         * @var array 'metadata'
-         */
-        'metadata',
-
-        /**
-         * The Stripe account ID for which these funds are intended.
-         * @var string 'on_behalf_of'
-         */
-        'on_behalf_of',
-
-        /**
-         * The email address to which the charge's receipt will be sent
-         * @var string 'receipt_email'
-         */
-        'receipt_email',
-
-        /**
-         * Shipping information for the charge
-         * @link https://stripe.com/docs/api/charges/create#create_charge-shipping
-         * @var array 'shipping'
-         */
-        'shipping',
-
-        /**
-         * A payment source to be charged. This can be the ID of a card (i.e., credit or debit card), a bank account,
-         * a source, a token, or a connected account.
-         * @var string 'source'
-         */
-        'source',
-
-        /**
-         * An arbitrary string to be used as the dynamic portion of the full descriptor displayed on your customer’s credit card statement.
-         * @var string 'statement_descriptor'
-         */
-        'statement_descriptor',
-
-        /**
-         * An optional dictionary including the account to automatically transfer to as part of a destination charge.
-         * @link https://stripe.com/docs/api/charges/create#create_charge-transfer_data
-         * @link https://stripe.com/docs/connect/destination-charges
-         * @var array 'transfer_data'
-         */
-        'transfer_data',
-
-        /**
-         * A string that identifies this transaction as part of a group.
-         * @link https://stripe.com/docs/api/charges/create#create_charge-transfer_group
-         * @link https://stripe.com/docs/connect/charges-transfers#grouping-transactions
-         * @var string 'transfer_group'
-         */
-        'transfer_group',
-    ];
+    /**
+     * Client API key
+     *
+     * @var string
+     */
+    protected $publicApiKey;
 
     /**
      * Construct
@@ -151,24 +88,10 @@ class Transaction
     {
         $this->settings = $config;
 
-        try {
-            $this->serverApiKey($this->settings->get('server_api_key'));
-        } catch(Exception $err) {
-            $this->handleError($err, "{$this::$classname}: A Stripe API key (secret) is required");
-        }
+        $this->setStripeKeys();
+        $this->setDefaultCurrency();
 
-        try {
-            $this->clientApiKey($this->settings->get('client_api_key'));
-        } catch (Exception $err) {
-            $this->handleError($err, "{$this::$classname}: A Stripe API key (publishable) is required");
-        }
-
-        $defaultCurrency = $this->settings->get('default_currency');
-
-        if(isset($defaultCurrency) && is_string($defaultCurrency)) {
-            $this->defaultCurrency = $defaultCurrency;
-        }
-
+        $this->util   = $this->app->make('stripe.wp.utilities');
         $this->charge = $this->app->make('stripe.charge');
 
         return $this;
@@ -182,57 +105,77 @@ class Transaction
     public function init()
     {
         try {
-            $secretKey = $this->serverApiKey();
+            $this->secretKey = $this->secretApiKey();
         } catch (Exception $err) {
-            $this->handleError($err, "{$this::$classname}: Attempted to set an unsepcified key in init method");
+            return new Exception("{$this::$classname}: Attempted to set an unsepcified key in init method");
         }
 
-        if (isset($secretKey)) {
-            Stripe::setApiKey($secretKey);
+        if (isset($this->secretKey) && !is_null($this->secretKey)) {
+            Stripe::setApiKey($this->secretKey);
         }
 
         return $this;
     }
 
     /**
-     * Handles Secret API key
+     * Set Stripe keys
      *
-     * @param  string $serverApiKey
-     * @return mixed{\TinyPixel\WordPress\Stripe\Transaction|string} {$this|$serverApiKey}
+     * @return void
      */
-    public function serverApiKey(string $serverApiKey = null)
+    private function setStripeKeys()
     {
-        if (isset($serverApiKey) && is_string($serverApiKey)) {
-            $this->serverApiKey = $serverApiKey;
+        try {
+            $this->secretApiKey($this->settings->get('server_api_key'));
+        } catch (Exception $err) {
+            return new Exception("{$this::$classname}: A Stripe API key (secret) is required");
+        }
+
+        try {
+            $this->publicApiKey($this->settings->get('client_api_key'));
+        } catch (Exception $err) {
+            return new Exception("{$this::$classname}: A Stripe API key (publishable) is required");
+        }
+    }
+
+    /**
+     * Secret API key
+     *
+     * @param  string $secretApiKey
+     * @return mixed{\TinyPixel\WordPress\Stripe\Transaction|string} {$this|$secretApiKey}
+     */
+    public function secretApiKey(string $secretApiKey = null)
+    {
+        if (isset($secretApiKey) && is_string($secretApiKey)) {
+            $this->secretApiKey = $secretApiKey;
 
             return $this;
         }
 
-        if (isset($this->serverApiKey)) {
-            return $this->serverApiKey;
+        if (isset($this->secretApiKey)) {
+            return $this->secretApiKey;
         } else {
             throw new Exception("{$this::$classname}: A Stripe API key (secret) is required");
         }
     }
 
     /**
-     * Handles Publishable API Key
+     * Publishable API Key
      *
-     * @param  string $clientApiKey
+     * @param  string $publicApiKey
      * @return mixed{int|object}
      */
-    public function clientApiKey(string $clientApiKey = null)
+    public function publicApiKey(string $publicApiKey = null)
     {
-        if (isset($clientApiKey) && is_string($clientApiKey)) {
-            $this->clientApiKey = $clientApiKey;
+        if (isset($publicApiKey) && is_string($publicApiKey)) {
+            $this->publicApiKey = $publicApiKey;
 
             return $this;
         }
 
-        if (isset($this->clientApiKey)) {
-            return $this->clientApiKey;
+        if (isset($this->publicApiKey)) {
+            return $this->publicApiKey;
         } else {
-            throw new Exception('A client API key is required to be set for Stripe transactions');
+            throw new Exception("{$this::$classname} A client API key is required to be set for Stripe transactions");
         }
     }
 
@@ -253,12 +196,26 @@ class Transaction
         if (isset($this->token)) {
             return $this->token;
         } else {
-            throw new Exception('There is an issue generating the API token');
+            throw new Exception("{$this::$classname} There is an issue generating the API token");
         }
     }
 
     /**
-     * Handles transaction amount
+     * Sets default currency
+     *
+     * @return void
+     */
+    public function setDefaultCurrency()
+    {
+        $defaultCurrency = $this->settings->get('default_currency');
+
+        if (isset($defaultCurrency) && is_string($defaultCurrency)) {
+            $this->defaultCurrency = $defaultCurrency;
+        }
+    }
+
+    /**
+     * Sets transaction amount
      *
      * @param  int $amount
      * @return mixed{int|object}
@@ -274,7 +231,7 @@ class Transaction
         if (isset($this->amount)) {
             return $this->amount;
         } else {
-            throw new Exception('There is no amount set for this transaction.');
+            throw new Exception("{$this::$classname} There is no amount set for this transaction.");
         }
     }
 
@@ -296,7 +253,7 @@ class Transaction
             return $this->currency;
         }
 
-        throw new Exception('Specify currency using the currency(string) method or in the configuration file');
+        throw new Exception("{$this::$classname}: Specify currency using the currency(string) method or in the configuration file");
     }
 
     /**
@@ -310,34 +267,33 @@ class Transaction
         try {
             $source = $this->token();
         } catch (Exception $err) {
-            return $this->handleError($err, "{$this::$classname}: A token must be set");
+            throw new Exception("{$this::$classname}: A token must be set");
         }
 
         // validate amount
         try {
             $amount = $this->amount();
         } catch (Exception $err) {
-            return $this->handleError($err, "{$this::$classname}: An amount must be set.");
+            throw new Exception("{$this::$classname}: An amount must be set.");
         }
 
         // validate currency
         try {
             $currency = $this->currency();
         } catch (Exception $err) {
-            return $this->handleError($err, "{$this::$classname}: A currency must be specified.");
+            throw new Exception("{$this::$classname}: A currency must be specified.");
         }
+
+        // convert dollar amount to pennies for Stripe API
+        $amount = $this->util::inPennies($amount);
 
         /**
          * Collects the minimum required parameters
          * for a Stripe\Charge request
-         *
-         * Also convert regular person dollars into
-         * Stripe's weirdo penny piles before that gets bound up
-         * in the collection.
          */
         $request = Collect([
             'source'   => $source,
-            'amount'   => $this->inPennies($amount),
+            'amount'   => $amount,
             'currency' => $currency,
         ]);
 
@@ -347,45 +303,8 @@ class Transaction
         try {
             return $request = $this->optionalParameters($this->optionalParameters, $request);
         } catch(Exception $err) {
-            return $this->handleError($err, "{$this::$classname}: addArguments method exception");
+            return new Exception("{$this::$classname}: addArguments method exception");
         }
-    }
-
-    /**
-     * Adds optional parameters to request Collection
-     *
-     * @param  mixed{array|Illuminate\Support\Collection} $arguments
-     * @param  \Illuminate\Support\Collection             $request
-     * @return \Illuminate\Support\Collection             $request
-     * @throws Exception
-     */
-    protected function optionalParameters($arguments, Collection $request)
-    {
-        // Cast arguments to collection if they aren't already
-        if (is_array($arguments)) {
-            $arguments = Collection::make($arguments);
-        }
-
-        /**
-         * For each of the optional parameters check to see if a value has
-         * been set. If something has been specified, call its handler and
-         * and append the resultant value to the request.
-         *
-         * If the value is set but the method does not exist, throw an exception.
-         */
-        $arguments->each(function ($value, $argument) use ($request) {
-            if (isset($value) && !is_null($value)) {
-                if (is_callable([get_class($this), $value])) {
-                    $val = $this->{$value}();
-                }
-            }
-
-            if (isset($val) && $val) {
-                $request->push([$argument => $val]);
-            }
-        });
-
-        return $request;
     }
 
     /**
@@ -402,128 +321,70 @@ class Transaction
         try {
             $charge = $this->chargeObject();
         } catch(Exception $err) {
-            return $invalidTransaction = $this->handleError($err,
-                "Error: chargeObject method"
-            );
+            return new Exception("Error: chargeObject method");
         }
 
         /**
          * Bails if charge is not of type \Illuminate\Support\Collection
          */
         if (!$charge instanceof \Illuminate\Support\Collection) {
-            return $invalidTransaction = $this->handleError($err,
-                "Error: chargeObject must return an Illuminate\Support\Collection instance"
-            );
+            return new Exception("Error: chargeObject must return an Illuminate\Support\Collection instance");
         }
 
         /**
          * Attempts to make the transaction and return the result
          */
         try {
-        $transaction = $this->charge::create($charge->toArray());
-
-        return $transaction;
+            return $this->charge::create($charge->toArray());
         }
+
         /**
          * ...catches invalid card errors
-         * @param \Stripe\Error\Card $err
          */
         catch (Error\Card $err) {
-            return $invalidTransaction = $this->handleError($err,
-                "Stripe error: Card error"
-            );
+            throw new StripeException($err, "Stripe error: Card error");
         }
+
         /**
          * ...catches rate limit exceeded errors
-         * @param \Stripe\Error\RateLimit $serverApiKey
          */
         catch (Error\RateLimit $err) {
-            return $invalidTransaction = $this->handleError($err,
-                "Stripe error: Rate limit exceeded"
-            );
+            throw new StripeException($err, "Stripe error: Rate limit exceeded");
         }
+
         /**
          * ...catches invalid request errors
-         * @param \Stripe\Error\InvalidRequest $err
          */
         catch (Error\InvalidRequest $err) {
-            return $invalidTransaction = $this->handleError($err,
-                "Stripe error: Invalid request"
-            );
+            throw new StripeException($err, "Stripe error: Invalid request");
         }
 
         /**
          * ...catches authentication errors
-         * @param \Stripe\Error\Authentication $err
          */
         catch (Error\Authentication $err) {
-            return $invalidTransaction = $this->handleError($err,
-                "Stripe error: Authentication"
-            );
+            throw new StripeException($err, "Stripe error: Authentication");
         }
 
         /**
          * ...catches API connection errors
-         * @param \Stripe\Error\ApiConnection $err
          */
         catch (Error\ApiConnection $err) {
-            return $invalidTransaction = $this->handleError($err,
-                "Stripe error: API Connection"
-            );
+            throw new StripeException($err, "Stripe error: API Connection");
         }
 
         /**
          * ...catches generic Stripe errors
-         * @param \Stripe\Error\Base $err
          */
         catch (Error\Base $err) {
-            return $invalidTransaction = $this->handleError($err,
-                "Stripe error: Base error encountered
-            ");
+            throw new StripeException($err, "Stripe error: Base error encountered");
         }
 
         /**
          * ...catches errors thrown by Stripe but caused by this implementation
-         * @param Exception $err
          */
         catch (Exception $err) {
-            return $invalidTransaction = $this->handleError($err,
-                "\TinyPixel\WordPress\Stripe\Transaction error: thrown from Stripe\Charge"
-            );
+            throw new Exception($err, "\TinyPixel\WordPress\Stripe\Transaction error: thrown from Stripe\Charge");
         }
-    }
-
-    /**
-     * Returns information about error
-     *
-     * @param  \Stripe\Error                  $err
-     * @param  string                         $label
-     * @return \Illuminate\Support\Collection $error
-     */
-    public function handleError(mixed $err, string $label) {
-        $errorBody = $err->getJsonBody();
-        $errorStatus = $err->getHttpStatus();
-
-        $error = Collection::make([
-            'label'   => $label,
-            'status'  => $errorStatus,
-            'type'    => $errorBody['status'],
-            'code'    => $errorBody['code'],
-            'param'   => $errorBody['param'],
-            'message' => $errorBody['message'],
-        ]);
-
-        return $error;
-    }
-
-    /**
-     * Multiplies dollar amount by 100
-     *
-     * @param  int   $cents
-     * @return float $dollar
-     */
-    protected function inPennies(int $dollars)
-    {
-        return $dollars * 100;
     }
 }

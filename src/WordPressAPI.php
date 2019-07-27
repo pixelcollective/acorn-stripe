@@ -13,15 +13,13 @@ use \Illuminate\Support\Collection;
 // Roots
 use \Roots\Acorn\Application;
 
-// Internal
-use \TinyPixel\WordPress\Stripe\Handler;
-
 /**
  * WordPress API
  *
  * @author  Kelly Mears <kelly@tinypixel.dev>
  * @license MIT
  * @since   1.0.0
+ * @uses    Transaction
  *
  * @package    wordpress
  * @subpackage acorn-stripe
@@ -46,9 +44,9 @@ class WordPressAPI
      */
     public function init()
     {
-        $this->namespace = 'tiny-pixel';
-        $this->handler   = $this->app['stripe.wp.transaction'];
-        $this->clientId  = $this->handler->clientApiKey();
+        $this->namespace   = 'tiny-pixel';
+        $this->transaction = $this->app['stripe.wp.transaction'];
+        $this->clientId    = $this->transaction->publicApiKey();
 
         add_action('rest_api_init', [$this, 'routes']);
     }
@@ -80,10 +78,14 @@ class WordPressAPI
     public function clientGet()
     {
         if (isset($this->clientId)) {
-            return new WP_REST_Response(['clientId' => $this->clientId], 200);
+            return new WP_REST_Response([
+                'clientId' => $this->clientId
+            ], 200);
         }
 
-        return new WP_REST_Response(['err' => 'Endpoint reached but no client id can be found.'], 400);
+        return new WP_REST_Response([
+            'err' => 'Endpoint reached but no client id can be found.'
+        ], 400);
     }
 
     /**
@@ -97,20 +99,18 @@ class WordPressAPI
         $parameters = (object) $request->get_params();
 
         if (isset($parameters)) {
-            if (isset($parameters->stripeToken)) {
-                $this->handler->token($parameters->stripeToken);
-            }
+            $this->transaction->token($parameters->stripeToken);
+            $this->transaction->amount($parameters->amount);
 
-            if (isset($parameters->amount)) {
-                $this->handler->amount($parameters->amount);
-                $response = $this->handler->transaction();
-            }
+            $response = $this->transaction->transaction();
 
             if (isset($response)) {
                 return new WP_REST_Response($response, 200);
             }
 
-            return new WP_REST_Response(['err' => 'Transaction amount not defined'], 400);
+            return new WP_REST_Response([
+                'err' => 'Problem with the transaction'
+            ], 400);
         }
     }
 }
